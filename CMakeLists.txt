@@ -5,7 +5,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(OpticalFlowLib
-    src/test.cpp
+    src/ImageProcessing.cpp
+    src/stb_image.cpp
+    src/stb_image_write.cpp
 )
 
 add_subdirectory(apps)
