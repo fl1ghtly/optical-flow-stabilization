@@ -7,7 +7,7 @@
 int main() {
     int width, height, nChannels;
     // Load image in grayscale
-    uint8_t *data = stbi_load("checkerboard.png", &width, &height, &nChannels, STBI_grey);
+    float *data = stbi_loadf("checkerboard.png", &width, &height, &nChannels, STBI_grey);
 
     if (!data) {
         std::cerr << "Failed to load image" << std::endl;
@@ -20,11 +20,9 @@ int main() {
         {-1, 0, 1}
     };
 
-    uint8_t *gradientF = convolveImageKernel(data, width, height, kernelX);
-
-    uint8_t *response = harrisCornerDetector(data, width, height, 2, 0.04);
-
-    int success = stbi_write_png("response.png", width, height, nChannels, response, width * nChannels);
+    float *response = harrisCornerDetector(data, width, height, 2, 0.04);
+    uint8_t *normResponse = convertImageTo8bit(response, width, height);
+    int success = stbi_write_png("normResponse.png", width, height, nChannels, normResponse, width * nChannels);
 
     if (success) {
         std::cout << "Image saved" << std::endl;
@@ -32,7 +30,8 @@ int main() {
         std::cerr << "Failed to save image" << std::endl;
     }
 
-    delete gradientF;
+    delete response;
+    delete normResponse;
     stbi_image_free(data);
 
     return 0;

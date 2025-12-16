@@ -1,11 +1,11 @@
 #include "ImageProcessing.h"
 
-uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<std::vector<int>> kernel) {
-    uint8_t *output = new uint8_t[width * height];
+float* convolveImageKernel(float *image, int width, int height, std::vector<std::vector<int>> kernel) {
+    float *output = new float[width * height];
     // Convolve the kernel at each pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            uint8_t *outputPixel = output + (x + width * y);
+            float *outputPixel = output + (x + width * y);
             *outputPixel = 0;
             for (int j = 0; j < kernel.size(); j++) {
                 for (int i = 0; i < kernel[0].size(); i++) {
@@ -15,7 +15,7 @@ uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<
                     
                     // Pixels beyond image edges are treated as '0'
                     if (dx < 0 || dx >= width || dy < 0 || dy >= height) continue;
-                    uint8_t *pixelOffset = image + (dx + width * dy);
+                    float *pixelOffset = image + (dx + width * dy);
                     *outputPixel += (*pixelOffset) * kernel[j][i];
                 }
             }
@@ -24,7 +24,7 @@ uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<
     return output;
 }
 
-uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSize, float sensitivity) {
+float* harrisCornerDetector(float *image, int width, int height, int blockSize, float sensitivity) {
     std::vector<std::vector<int>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
@@ -37,42 +37,15 @@ uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSi
         {-1, -2, -1}
     };
 
-    // 1. Calculate Image gradients in x and y direction
-    uint8_t *gradientX = convolveImageKernel(image, width, height, kernelX);
-    uint8_t *gradientY = convolveImageKernel(image, width, height, kernelY);
-
-    // 2. Subtract the mean from each image gradient
-    /*
-    int sumX = 0;
-    int sumY = 0;
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i++) {
-            uint8_t *pixelX = gradientX + (i + width * j); 
-            uint8_t *pixelY = gradientY + (i + width * j); 
-            
-            sumX += *pixelX;
-            sumY += *pixelY;
-        }
-    }
-
-    int avgX = sumX / (width * height);
-    int avgY = sumY / (width * height);
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i++) {
-            uint8_t *pixelX = gradientX + (i + width * j); 
-            uint8_t *pixelY = gradientY + (i + width * j); 
-            
-            *pixelX -= avgX;
-            *pixelY -= avgY;
-        }
-    }
-    */
+    // Calculate Image gradients in x and y direction
+    float *gradientX = convolveImageKernel(image, width, height, kernelX);
+    float *gradientY = convolveImageKernel(image, width, height, kernelY);
 
     // Calculate corner response for each block
-    uint8_t *output = new uint8_t[width * height];
+    float *output = new float[width * height];
     for (int i = 0; i < height; i += blockSize) {
         for (int j = 0; j < width; j += blockSize) {
-            // 3. Compute covariance matrix
+            // Compute covariance matrix
             // [ IxIx  IxIy ]
             // [ IyIx  IyIy ]
             int IxIx = 0;
@@ -83,8 +56,8 @@ uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSi
                 for (int x = 0; x < blockSize; x++) {
                     const int dx = j + x;
                     const int dy = i + y;
-                    const uint8_t *pixelOffsetX = gradientX + (dx + width * dy);
-                    const uint8_t *pixelOffsetY = gradientY + (dx + width * dy);
+                    const float *pixelOffsetX = gradientX + (dx + width * dy);
+                    const float *pixelOffsetY = gradientY + (dx + width * dy);
         
                     IxIx += (*pixelOffsetX) * (*pixelOffsetX);
                     IxIy += (*pixelOffsetX) * (*pixelOffsetY);
@@ -92,18 +65,20 @@ uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSi
                 }
             }
         
-            // 4. Harris Criterion det(M) - k * trace^2(M)
+            // Harris Criterion det(M) - k * trace^2(M)
             const int determinant = IxIx * IyIy - IxIy * IxIy;
             const int trace = IxIx + IyIy;
-            const float response = determinant - sensitivity * trace * trace;
+            float response = determinant - sensitivity * trace * trace;
+            // Edges (R < 0) and flat regions (R ~ 0) should be clamped to 0 (without consequence to corner detection) 
+            // to avoid errors when converting to 8-bit
+            response = std::max(0.f, response);
 
             for (int y = 0; y < blockSize; y++) {
                 for (int x = 0; x < blockSize; x++) {
                     const int dx = j + x;
                     const int dy = i + y;
                     
-                    // TODO fix error, 8 bits not enough to store response
-                    uint8_t *outputOffset = output + (dx + width * dy);
+                    float *outputOffset = output + (dx + width * dy);
                     *outputOffset = response;
                 }
             }
@@ -115,3 +90,27 @@ uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSi
 
     return output;
 }
+
+uint8_t* convertImageTo8bit(float *image, int width, int height) {
+    uint8_t *output = new uint8_t[width * height];
+
+    float maximum = image[0];
+    float minimum = image[0];
+    for (int i = 0; i < width * height; i++) {
+        maximum = image[i] > maximum ? image[i] : maximum;
+        minimum = image[i] < minimum ? image[i] : minimum;
+    }
+
+    float range = maximum - minimum;
+
+    for (int i = 0; i < width * height; i++) {
+        // Normalize to  a range of 0 - 1
+        float normalized = (image[i] - minimum) / range;
+        // Clamp to range of 0 - 1 incase of rounding error
+        normalized = normalized < 0.f ? 0.f : (normalized > 1.f ? 1.f : normalized);
+        // Convert to an 8-bit value
+        output[i] = static_cast<uint8_t>(normalized * 255.f);
+    }
+
+    return output;
+}   
