@@ -14,15 +14,17 @@ int main() {
         return 1;
     }
 
-    std::vector<std::vector<int>> kernel = {
+    std::vector<std::vector<int>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
         {-1, 0, 1}
     };
 
-    uint8_t *gradient = convolveImageKernel(data, width, height, kernel);
+    uint8_t *gradientF = convolveImageKernel(data, width, height, kernelX);
 
-    int success = stbi_write_png("gradient.png", width, height, nChannels, gradient, width * nChannels);
+    uint8_t *response = harrisCornerDetector(data, width, height, 2, 0.04);
+
+    int success = stbi_write_png("response.png", width, height, nChannels, response, width * nChannels);
 
     if (success) {
         std::cout << "Image saved" << std::endl;
@@ -30,7 +32,7 @@ int main() {
         std::cerr << "Failed to save image" << std::endl;
     }
 
-    delete gradient;
+    delete gradientF;
     stbi_image_free(data);
 
     return 0;

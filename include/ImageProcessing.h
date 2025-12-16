@@ -4,5 +4,5 @@
 
 uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<std::vector<int>> kernel);
 
-void harrisCornerDetector();
+uint8_t* harrisCornerDetector(uint8_t *image, int width, int height, int blockSize, float sensitivity);
 void shiTomasiCornerDetector();
