@@ -1,12 +1,12 @@
 #include "ImageProcessing.h"
 
-uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<std::vector<int>> kernel) {
-    uint8_t *output = new uint8_t[width * height];
+float* convolveImageKernel(float *image, int width, int height, std::vector<std::vector<int>> kernel) {
+    float *output = new float[width * height];
     // Convolve the kernel at each pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            uint8_t *outputPixel = output + (x + width * y);
-            *outputPixel = 0;
+            float *outputPixel = output + (x + width * y);
+            *outputPixel = 0.f;
             for (int j = 0; j < kernel.size(); j++) {
                 for (int i = 0; i < kernel[0].size(); i++) {
                     // Get the address of the (x + dx, y + dy) pixel 
@@ -15,11 +15,103 @@ uint8_t* convolveImageKernel(uint8_t *image, int width, int height, std::vector<
                     
                     // Pixels beyond image edges are treated as '0'
                     if (dx < 0 || dx >= width || dy < 0 || dy >= height) continue;
-                    uint8_t *pixelOffset = image + (dx + width * dy);
+                    float *pixelOffset = image + (dx + width * dy);
                     *outputPixel += (*pixelOffset) * kernel[j][i];
                 }
             }
         }
     }
+    return output;
+}
+
+float* harrisCornerDetector(float *image, int width, int height, int blockSize, float sensitivity) {
+    std::vector<std::vector<int>> kernelX = {
+        {-1, 0, 1},
+        {-2, 0, 2},
+        {-1, 0, 1}
+    };
+
+    std::vector<std::vector<int>> kernelY = {
+        {1, 2, 1},
+        {0, 0, 0},
+        {-1, -2, -1}
+    };
+
+    // 1. Calculate Image gradients in x and y direction
+    float *gradientX = convolveImageKernel(image, width, height, kernelX);
+    float *gradientY = convolveImageKernel(image, width, height, kernelY);
+
+    // 2. Subtract the mean from each image gradient
+    /*
+    int sumX = 0;
+    int sumY = 0;
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            float *pixelX = gradientX + (i + width * j); 
+            float *pixelY = gradientY + (i + width * j); 
+            
+            sumX += *pixelX;
+            sumY += *pixelY;
+        }
+    }
+
+    int avgX = sumX / (width * height);
+    int avgY = sumY / (width * height);
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            float *pixelX = gradientX + (i + width * j); 
+            float *pixelY = gradientY + (i + width * j); 
+            
+            *pixelX -= avgX;
+            *pixelY -= avgY;
+        }
+    }
+    */
+
+    // Calculate corner response for each block
+    float *output = new float[width * height];
+    for (int i = 0; i < height; i += blockSize) {
+        for (int j = 0; j < width; j += blockSize) {
+            // 3. Compute covariance matrix
+            // [ IxIx  IxIy ]
+            // [ IyIx  IyIy ]
+            int IxIx = 0;
+            int IxIy = 0;
+            int IyIy = 0;
+            // Element wise multiplication
+            for (int y = 0; y < blockSize; y++) {
+                for (int x = 0; x < blockSize; x++) {
+                    const int dx = j + x;
+                    const int dy = i + y;
+                    const float *pixelOffsetX = gradientX + (dx + width * dy);
+                    const float *pixelOffsetY = gradientY + (dx + width * dy);
+        
+                    IxIx += (*pixelOffsetX) * (*pixelOffsetX);
+                    IxIy += (*pixelOffsetX) * (*pixelOffsetY);
+                    IyIy += (*pixelOffsetY) * (*pixelOffsetY);
+                }
+            }
+        
+            // 4. Harris Criterion det(M) - k * trace^2(M)
+            const int determinant = IxIx * IyIy - IxIy * IxIy;
+            const int trace = IxIx + IyIy;
+            const float response = determinant - sensitivity * trace * trace;
+
+            for (int y = 0; y < blockSize; y++) {
+                for (int x = 0; x < blockSize; x++) {
+                    const int dx = j + x;
+                    const int dy = i + y;
+                    
+                    // TODO fix error, 8 bits not enough to store response
+                    float *outputOffset = output + (dx + width * dy);
+                    *outputOffset = response;
+                }
+            }
+        }
+    }
+    
+    delete gradientX;
+    delete gradientY;
+
     return output;
 }
