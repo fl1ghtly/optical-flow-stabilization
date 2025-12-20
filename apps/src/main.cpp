@@ -8,30 +8,27 @@ int main() {
     int width, height, nChannels;
     // Load image in grayscale
     float *data = stbi_loadf("checkerboard.png", &width, &height, &nChannels, STBI_grey);
+    // nChannels is set to the amount of channels in the original image, need to set to 1 for grayscale
+    nChannels = 1;
 
     if (!data) {
         std::cerr << "Failed to load image" << std::endl;
         return 1;
     }
 
-    std::vector<std::vector<int>> kernelX = {
-        {-1, 0, 1},
-        {-2, 0, 2},
-        {-1, 0, 1}
-    };
-
     float *response = harrisCornerDetector(data, width, height, 2, 0.04);
     uint8_t *normResponse = convertImageTo8bit(response, width, height);
     int success = stbi_write_png("normResponse.png", width, height, nChannels, normResponse, width * nChannels);
-
+    // TODO threshold
+    // TODO NMS
     if (success) {
         std::cout << "Image saved" << std::endl;
     } else {
         std::cerr << "Failed to save image" << std::endl;
     }
 
-    delete response;
-    delete normResponse;
+    delete[] response;
+    delete[] normResponse;
     stbi_image_free(data);
 
     return 0;

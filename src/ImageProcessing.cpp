@@ -48,14 +48,15 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
             // Compute covariance matrix
             // [ IxIx  IxIy ]
             // [ IyIx  IyIy ]
-            int IxIx = 0;
-            int IxIy = 0;
-            int IyIy = 0;
+            float IxIx = 0.f;
+            float IxIy = 0.f;
+            float IyIy = 0.f;
             // Element wise multiplication
             for (int y = 0; y < blockSize; y++) {
                 for (int x = 0; x < blockSize; x++) {
                     const int dx = j + x;
                     const int dy = i + y;
+                    if (dx >= width || dy >= height) continue;
                     const float *pixelOffsetX = gradientX + (dx + width * dy);
                     const float *pixelOffsetY = gradientY + (dx + width * dy);
         
@@ -77,6 +78,7 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
                 for (int x = 0; x < blockSize; x++) {
                     const int dx = j + x;
                     const int dy = i + y;
+                    if (dx >= width || dy >= height) continue;
                     
                     float *outputOffset = output + (dx + width * dy);
                     *outputOffset = response;
@@ -85,8 +87,8 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
         }
     }
     
-    delete gradientX;
-    delete gradientY;
+    delete[] gradientX;
+    delete[] gradientY;
 
     return output;
 }
