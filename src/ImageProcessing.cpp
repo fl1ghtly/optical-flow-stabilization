@@ -43,55 +43,52 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
     float *gradientX = convolveImageKernel(image, width, height, kernelX);
     float *gradientY = convolveImageKernel(image, width, height, kernelY);
 
-    // Calculate corner response for each block
-    float *output = new float[width * height];
-    for (int i = 0; i < height; i += blockSize) {
-        for (int j = 0; j < width; j += blockSize) {
-            // Compute covariance matrix
-            // [ IxIx  IxIy ]
-            // [ IyIx  IyIy ]
-            float IxIx = 0.f;
-            float IxIy = 0.f;
-            float IyIy = 0.f;
-            // Element wise multiplication
-            for (int y = 0; y < blockSize; y++) {
-                for (int x = 0; x < blockSize; x++) {
-                    const int dx = j + x;
-                    const int dy = i + y;
-                    if (dx >= width || dy >= height) continue;
-                    const float *pixelOffsetX = gradientX + (dx + width * dy);
-                    const float *pixelOffsetY = gradientY + (dx + width * dy);
-        
-                    IxIx += (*pixelOffsetX) * (*pixelOffsetX);
-                    IxIy += (*pixelOffsetX) * (*pixelOffsetY);
-                    IyIy += (*pixelOffsetY) * (*pixelOffsetY);
-                }
-            }
-        
-            // Harris Criterion det(M) - k * trace^2(M)
-            const int determinant = IxIx * IyIy - IxIy * IxIy;
-            const int trace = IxIx + IyIy;
-            float response = determinant - sensitivity * trace * trace;
-            // Edges (R < 0) and flat regions (R ~ 0) should be clamped to 0 (without consequence to corner detection) 
-            // to avoid errors when converting to 8-bit
-            response = std::max(0.f, response);
-
-            for (int y = 0; y < blockSize; y++) {
-                for (int x = 0; x < blockSize; x++) {
-                    const int dx = j + x;
-                    const int dy = i + y;
-                    if (dx >= width || dy >= height) continue;
-                    
-                    float *outputOffset = output + (dx + width * dy);
-                    *outputOffset = response;
-                }
-            }
-        }
-    }
+    // Compute Covariance matrix for each pixel
+    std::vector<float> Ix2(width * height);
+    std::vector<float> IxIy(width * height);
+    std::vector<float> Iy2(width * height);
     
+    for (int i = 0; i < width * height; i++) {
+        Ix2[i] = gradientX[i] * gradientX[i];
+        IxIy[i] = gradientX[i] * gradientY[i];
+        Iy2[i] = gradientY[i] * gradientY[i];
+    }
+
     delete[] gradientX;
     delete[] gradientY;
+    
+    // Multiply covariance matrix with window (Gaussian)
+    std::vector<std::vector<float>> gaussianKernel = {
+        {1.0/16.0, 1.0/8.0, 1.0/16.0},
+        {1.0/8.0, 1.0/4.0, 1.0/8.0},
+        {1.0/16.0, 1.0/8.0, 1.0/16.0},
+    };
 
+    std::vector<std::vector<float>> boxKernel = {
+        {1, 1},
+        {1, 1},
+    };
+
+    float* gIx2 = convolveImageKernel(Ix2.data(), width, height, boxKernel);
+    float* gIxIy = convolveImageKernel(IxIy.data(), width, height, boxKernel);
+    float* gIy2 = convolveImageKernel(Iy2.data(), width, height, boxKernel);
+
+    float *output = new float[width * height];
+
+    for (int i = 0; i < width * height; i++) {
+        // Harris Criterion det(M) - k * trace^2(M)
+        const float determinant = gIx2[i] * gIy2[i] - gIxIy[i] * gIxIy[i];
+        const float trace = gIx2[i] + gIy2[i];
+        const float response = determinant - sensitivity * trace * trace;
+        output[i] = response;
+    }
+
+    delete[] gIx2;
+    delete[] gIxIy;
+    delete[] gIy2;
+
+    return output;
+}
     return output;
 }
 
