@@ -111,6 +111,42 @@ float* threshold(float *image, int width, int height, float threshold) {
 
     return output;
 }
+
+float* nonMaximalSuppression(float *image, int width, int height, int blockSize) {
+    float *output = new float[width * height];
+
+    // Check for every pixel
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            float pixelValue = image[y + x * width];
+            
+            // Skip pixel if 0
+            if (pixelValue == 0) {
+                output[y + x * width] = 0;
+                continue;
+            }
+
+            // Check each pixel's neighbors, if any are greater than this pixel, suppress the pixel and move on
+            for (int i = 0; i < blockSize; i++) {
+                const int dy = y + (i - blockSize / 2);
+                if (dy < 0 || dy >= height) continue;
+
+                for (int j = 0; j < blockSize; j++) {
+                    const int dx = x + (j - blockSize / 2);
+                    if (dx < 0 || dx >= width) continue;
+
+                    if (image[dy + dx * width] > pixelValue) {
+                        output[y + x * width] = 0;
+                        goto exit;
+                    }
+                }
+            }
+            // Otherwise this is the maximum pixel in the block
+            output[y + x * width] = 1.0f;
+        exit:
+        }
+    }
+    
     return output;
 }
 

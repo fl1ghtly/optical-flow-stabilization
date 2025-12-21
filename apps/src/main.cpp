@@ -18,6 +18,10 @@ int main() {
 
     float *response = harrisCornerDetector(data, width, height, 2, 0.04);
     float *thresholded = threshold(response, width, height, 0.01);
+    float *nms = nonMaximalSuppression(thresholded, width, height, 3);
+    uint8_t *output = convertImageTo8bit(nms, width, height);
+    
+    int success = stbi_write_png("output.png", width, height, nChannels, output, width * nChannels);
     // TODO NMS
     if (success) {
         std::cout << "Image saved" << std::endl;
@@ -27,6 +31,8 @@ int main() {
 
     delete[] response;
     delete[] thresholded;
+    delete[] nms;
+    delete[] output;
     stbi_image_free(data);
 
     return 0;
