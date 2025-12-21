@@ -89,6 +89,28 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
 
     return output;
 }
+
+float* threshold(float *image, int width, int height, float threshold) {
+    float *output = new float[width * height];
+    float maxVal = 0.f;
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            maxVal = std::max(image[j + i * width], maxVal);
+        }
+    }
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            if (image[j + i * width] < threshold * maxVal) {
+                output[j + i * width] = 0.f;
+            } else {
+                output[j + i * width] = image[j + i * width];
+            }
+        }
+    }
+
+    return output;
+}
     return output;
 }
 
