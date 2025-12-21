@@ -1,6 +1,6 @@
 #include "ImageProcessing.h"
 
-float* convolveImageKernel(float *image, int width, int height, std::vector<std::vector<int>> kernel) {
+float* convolveImageKernel(float *image, int width, int height, std::vector<std::vector<float>> kernel) {
     float *output = new float[width * height];
     // Convolve the kernel at each pixel
     for (int y = 0; y < height; y++) {
@@ -10,11 +10,13 @@ float* convolveImageKernel(float *image, int width, int height, std::vector<std:
             for (int j = 0; j < kernel.size(); j++) {
                 for (int i = 0; i < kernel[0].size(); i++) {
                     // Get the address of the (x + dx, y + dy) pixel 
-                    const int dx = x + (i - kernel[0].size() / 2);
-                    const int dy = y + (j - kernel.size() / 2);
+                    int dx = x + (i - kernel[0].size() / 2);
+                    int dy = y + (j - kernel.size() / 2);
                     
-                    // Pixels beyond image edges are treated as '0'
-                    if (dx < 0 || dx >= width || dy < 0 || dy >= height) continue;
+                    // Pixels beyond image edges should replicate the nearest valid pixel
+                    dx = std::min(width - 1, std::max(0, dx));
+                    dy = std::min(height - 1, std::max(0, dy));
+
                     float *pixelOffset = image + (dx + width * dy);
                     *outputPixel += (*pixelOffset) * kernel[j][i];
                 }
@@ -25,13 +27,13 @@ float* convolveImageKernel(float *image, int width, int height, std::vector<std:
 }
 
 float* harrisCornerDetector(float *image, int width, int height, int blockSize, float sensitivity) {
-    std::vector<std::vector<int>> kernelX = {
+    std::vector<std::vector<float>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
         {-1, 0, 1}
     };
 
-    std::vector<std::vector<int>> kernelY = {
+    std::vector<std::vector<float>> kernelY = {
         {1, 2, 1},
         {0, 0, 0},
         {-1, -2, -1}
