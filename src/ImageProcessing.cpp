@@ -92,6 +92,25 @@ std::vector<float> harrisCornerDetector(const std::vector<float> &image, int wid
 
     return output;
 }
+
+std::vector<float> shiTomasiCornerDetector(const std::vector<float> &image, int width, int height, int blockSize) {
+    std::vector<float> output(width * height);
+    std::vector<float> cov = calculateCovarianceMatrix(image, width, height, blockSize);
+
+    for (int i = 0; i < width * height; i++) {
+        const float Ix2 = cov[3 * i];
+        const float IxIy = cov[3 * i + 1];
+        const float Iy2 = cov[3 * i + 2];
+        
+        const float determinant = Ix2 * Iy2 - IxIy * IxIy;
+        const float trace = Ix2 + Iy2;
+
+        // Calculate Eigenvalues using algebraic formula
+        const float discriminant = std::sqrtf(trace * trace - (4.0f * determinant));
+        const float eigenV1 = trace / 2.0f + discriminant;
+        const float eigenV2 = trace / 2.0f - discriminant;
+
+        output[i] = std::min(eigenV1, eigenV2);
     }
 
     return output;
