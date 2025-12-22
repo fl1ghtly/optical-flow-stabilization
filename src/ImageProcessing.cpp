@@ -83,11 +83,9 @@ std::vector<float> threshold(const std::vector<float> &image, int width, int hei
     std::vector<float>output(width * height);
     const float maxVal = *std::max_element(image.begin(), image.end());
 
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            if (image[j + i * width] >= threshold * maxVal) {
-                output[j + i * width] = image[j + i * width];
-            }
+    for (int i = 0; i < width * height; i++) {
+        if (image[i] >= threshold * maxVal) {
+            output[i] = image[i];
         }
     }
 
