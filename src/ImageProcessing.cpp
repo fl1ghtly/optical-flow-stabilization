@@ -22,6 +22,16 @@ std::vector<float> convolveImageKernel(const std::vector<float> &image, int widt
     return output;
 }
 
+std::vector<float> boxFilter(const std::vector<float> &image, int width, int height, int boxSize, bool normalize) {
+    std::vector<float> output(width * height);
+    float weight = normalize ? 1.0f / (boxSize * boxSize) : 1.0f;
+    
+    std::vector<std::vector<float>> hKernel(1, std::vector<float>(boxSize, 1.0f / weight));
+    output = convolveImageKernel(image, width, height, hKernel);
+    std::vector<std::vector<float>> vKernel(boxSize, std::vector<float>(1, 1.0f / weight));
+    return convolveImageKernel(output, width, height, vKernel);
+}
+
 std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity) {
     std::vector<std::vector<float>> kernelX = {
         {-1, 0, 1},
@@ -50,21 +60,10 @@ std::vector<float> harrisCornerDetector(const std::vector<float> &image, int wid
         Iy2[i] = gradientY[i] * gradientY[i];
     }
 
-    // Multiply covariance matrix with window (Gaussian)
-    std::vector<std::vector<float>> gaussianKernel = {
-        {1.0/16.0, 1.0/8.0, 1.0/16.0},
-        {1.0/8.0, 1.0/4.0, 1.0/8.0},
-        {1.0/16.0, 1.0/8.0, 1.0/16.0},
-    };
-
-    std::vector<std::vector<float>> boxKernel = {
-        {1, 1},
-        {1, 1},
-    };
-
-    Ix2 = convolveImageKernel(Ix2, width, height, boxKernel);
-    IxIy = convolveImageKernel(IxIy, width, height, boxKernel);
-    Iy2 = convolveImageKernel(Iy2, width, height, boxKernel);
+    // Multiply covariance matrix with window (box)
+    Ix2 = boxFilter(Ix2, width, height, blockSize);
+    IxIy = boxFilter(IxIy, width, height, blockSize);
+    Iy2 = boxFilter(Iy2, width, height, blockSize);
 
     std::vector<float>output(width * height);
 
