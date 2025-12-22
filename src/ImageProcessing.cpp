@@ -32,23 +32,23 @@ std::vector<float> boxFilter(const std::vector<float> &image, int width, int hei
     return convolveImageKernel(output, width, height, vKernel);
 }
 
-std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity) {
+std::vector<float> calculateCovarianceMatrix(const std::vector<float> &image, int width, int height, int blockSize) {
     std::vector<std::vector<float>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
         {-1, 0, 1}
     };
-
+    
     std::vector<std::vector<float>> kernelY = {
         {1, 2, 1},
         {0, 0, 0},
         {-1, -2, -1}
     };
-
+    
     // Calculate Image gradients in x and y direction
     std::vector<float> gradientX = convolveImageKernel(image, width, height, kernelX);
     std::vector<float> gradientY = convolveImageKernel(image, width, height, kernelY);
-
+    
     // Compute Covariance matrix for each pixel
     std::vector<float> Ix2(width * height);
     std::vector<float> IxIy(width * height);
@@ -59,20 +59,39 @@ std::vector<float> harrisCornerDetector(const std::vector<float> &image, int wid
         IxIy[i] = gradientX[i] * gradientY[i];
         Iy2[i] = gradientY[i] * gradientY[i];
     }
-
+    
     // Multiply covariance matrix with window (box)
     Ix2 = boxFilter(Ix2, width, height, blockSize);
     IxIy = boxFilter(IxIy, width, height, blockSize);
     Iy2 = boxFilter(Iy2, width, height, blockSize);
+    
+    std::vector<float> output(3 * width * height);
+    for (int i = 0; i < width * height; i++) {
+        output[3 * i] = Ix2[i];
+        output[3 * i + 1] = IxIy[i];
+        output[3 * i + 2] = Iy2[i];
+    }
 
-    std::vector<float>output(width * height);
+    return output;
+}
+
+std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity) {
+    std::vector<float> output(width * height);
+    std::vector<float> cov = calculateCovarianceMatrix(image, width, height, blockSize);
 
     for (int i = 0; i < width * height; i++) {
+        const float Ix2 = cov[3 * i];
+        const float IxIy = cov[3 * i + 1];
+        const float Iy2 = cov[3 * i + 2];
+
         // Harris Criterion det(M) - k * trace^2(M)
-        const float determinant = Ix2[i] * Iy2[i] - IxIy[i] * IxIy[i];
-        const float trace = Ix2[i] + Iy2[i];
-        const float response = determinant - sensitivity * trace * trace;
-        output[i] = response;
+        const float determinant = Ix2 * Iy2 - IxIy * IxIy;
+        const float trace = Ix2 + Iy2;
+        output[i] = determinant - sensitivity * trace * trace;
+    }
+
+    return output;
+}
     }
 
     return output;

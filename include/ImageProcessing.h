@@ -5,6 +5,7 @@
 
 std::vector<float> convolveImageKernel(const std::vector<float> &image, int width, int height, std::vector<std::vector<float>> kernel);
 std::vector<float> boxFilter(const std::vector<float> &image, int width, int height, int boxSize, bool normalize=false);
+std::vector<float> calculateCovarianceMatrix(const std::vector<float> &image, int width, int height, int blockSize);
 std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity);
 void shiTomasiCornerDetector();
 std::vector<float> threshold(const std::vector<float> &image, int width, int height, float threshold);
