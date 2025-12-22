@@ -1,24 +1,20 @@
 #include "ImageProcessing.h"
 
-float* convolveImageKernel(float *image, int width, int height, std::vector<std::vector<float>> kernel) {
-    float *output = new float[width * height];
+std::vector<float> convolveImageKernel(const std::vector<float> &image, int width, int height, std::vector<std::vector<float>> kernel) {
+    std::vector<float>output(width * height);
     // Convolve the kernel at each pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            float *outputPixel = output + (x + width * y);
-            *outputPixel = 0;
             for (int j = 0; j < kernel.size(); j++) {
-                for (int i = 0; i < kernel[0].size(); i++) {
-                    // Get the address of the (x + dx, y + dy) pixel 
-                    int dx = x + (i - kernel[0].size() / 2);
-                    int dy = y + (j - kernel.size() / 2);
-                    
-                    // Pixels beyond image edges should replicate the nearest valid pixel
-                    dx = std::min(width - 1, std::max(0, dx));
-                    dy = std::min(height - 1, std::max(0, dy));
+                int dy = y + (j - kernel.size() / 2);
+                // Pixels beyond image edges should replicate the nearest valid pixel
+                dy = std::clamp(dy, 0, height - 1);
 
-                    float *pixelOffset = image + (dx + width * dy);
-                    *outputPixel += (*pixelOffset) * kernel[j][i];
+                for (int i = 0; i < kernel[0].size(); i++) {
+                    int dx = x + (i - kernel[0].size() / 2);
+                    dx = std::clamp(dx, 0, width - 1);
+
+                    output[x + y * width] += image[dx + dy * width] * kernel[j][i];
                 }
             }
         }
@@ -26,7 +22,7 @@ float* convolveImageKernel(float *image, int width, int height, std::vector<std:
     return output;
 }
 
-float* harrisCornerDetector(float *image, int width, int height, int blockSize, float sensitivity) {
+std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity) {
     std::vector<std::vector<float>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
@@ -40,8 +36,8 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
     };
 
     // Calculate Image gradients in x and y direction
-    float *gradientX = convolveImageKernel(image, width, height, kernelX);
-    float *gradientY = convolveImageKernel(image, width, height, kernelY);
+    std::vector<float> gradientX = convolveImageKernel(image, width, height, kernelX);
+    std::vector<float> gradientY = convolveImageKernel(image, width, height, kernelY);
 
     // Compute Covariance matrix for each pixel
     std::vector<float> Ix2(width * height);
@@ -54,9 +50,6 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
         Iy2[i] = gradientY[i] * gradientY[i];
     }
 
-    delete[] gradientX;
-    delete[] gradientY;
-    
     // Multiply covariance matrix with window (Gaussian)
     std::vector<std::vector<float>> gaussianKernel = {
         {1.0/16.0, 1.0/8.0, 1.0/16.0},
@@ -69,41 +62,30 @@ float* harrisCornerDetector(float *image, int width, int height, int blockSize, 
         {1, 1},
     };
 
-    float* gIx2 = convolveImageKernel(Ix2.data(), width, height, boxKernel);
-    float* gIxIy = convolveImageKernel(IxIy.data(), width, height, boxKernel);
-    float* gIy2 = convolveImageKernel(Iy2.data(), width, height, boxKernel);
+    Ix2 = convolveImageKernel(Ix2, width, height, boxKernel);
+    IxIy = convolveImageKernel(IxIy, width, height, boxKernel);
+    Iy2 = convolveImageKernel(Iy2, width, height, boxKernel);
 
-    float *output = new float[width * height];
+    std::vector<float>output(width * height);
 
     for (int i = 0; i < width * height; i++) {
         // Harris Criterion det(M) - k * trace^2(M)
-        const float determinant = gIx2[i] * gIy2[i] - gIxIy[i] * gIxIy[i];
-        const float trace = gIx2[i] + gIy2[i];
+        const float determinant = Ix2[i] * Iy2[i] - IxIy[i] * IxIy[i];
+        const float trace = Ix2[i] + Iy2[i];
         const float response = determinant - sensitivity * trace * trace;
         output[i] = response;
     }
 
-    delete[] gIx2;
-    delete[] gIxIy;
-    delete[] gIy2;
-
     return output;
 }
 
-float* threshold(float *image, int width, int height, float threshold) {
-    float *output = new float[width * height];
-    float maxVal = 0.f;
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            maxVal = std::max(image[j + i * width], maxVal);
-        }
-    }
+std::vector<float> threshold(const std::vector<float> &image, int width, int height, float threshold) {
+    std::vector<float>output(width * height);
+    const float maxVal = *std::max_element(image.begin(), image.end());
 
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
-            if (image[j + i * width] < threshold * maxVal) {
-                output[j + i * width] = 0.f;
-            } else {
+            if (image[j + i * width] >= threshold * maxVal) {
                 output[j + i * width] = image[j + i * width];
             }
         }
@@ -112,19 +94,16 @@ float* threshold(float *image, int width, int height, float threshold) {
     return output;
 }
 
-float* nonMaximalSuppression(float *image, int width, int height, int blockSize) {
-    float *output = new float[width * height];
+std::vector<float> nonMaximalSuppression(const std::vector<float> &image, int width, int height, int blockSize) {
+    std::vector<float>output(width * height);
 
     // Check for every pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            float pixelValue = image[y + x * width];
+            float pixelValue = image[x + y * width];
             
             // Skip pixel if 0
-            if (pixelValue == 0) {
-                output[y + x * width] = 0;
-                continue;
-            }
+            if (pixelValue == 0) continue;
 
             // Check each pixel's neighbors, if any are greater than this pixel, suppress the pixel and move on
             for (int i = 0; i < blockSize; i++) {
@@ -135,14 +114,12 @@ float* nonMaximalSuppression(float *image, int width, int height, int blockSize)
                     const int dx = x + (j - blockSize / 2);
                     if (dx < 0 || dx >= width) continue;
 
-                    if (image[dy + dx * width] > pixelValue) {
-                        output[y + x * width] = 0;
-                        goto exit;
-                    }
+                    // Found another neighbor greater than current pixel, therefore stop searching and go to next pixel
+                    if (image[dx + dy * width] > pixelValue) goto exit;
                 }
             }
             // Otherwise this is the maximum pixel in the block
-            output[y + x * width] = 1.0f;
+            output[x + y * width] = 1.0f;
         exit:
         }
     }
@@ -150,7 +127,7 @@ float* nonMaximalSuppression(float *image, int width, int height, int blockSize)
     return output;
 }
 
-uint8_t* convertImageTo8bit(float *image, int width, int height) {
+uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height) {
     uint8_t *output = new uint8_t[width * height];
 
     float maximum = image[0];
