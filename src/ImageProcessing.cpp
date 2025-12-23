@@ -154,12 +154,46 @@ std::vector<float> nonMaximalSuppression(const std::vector<float> &image, int wi
                 }
             }
             // Otherwise this is the maximum pixel in the block
-            output[x + y * width] = 1.0f;
+            output[x + y * width] = image[x + y * width];
         exit:
         }
     }
     
     return output;
+}
+
+std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int width, int height, float qualityLevel, float minimumDistance) {
+    std::vector<float> response = shiTomasiCornerDetector(image, width, height, 2);
+    std::vector<float> thresholded = threshold(response, width, height, qualityLevel);
+    std::vector<float> nms = nonMaximalSuppression(thresholded, width, height, 3);
+
+    std::vector<Corner> corners;
+    // Get response and location of all corners
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if (nms[x + y * width] > 0) corners.push_back({nms[x + y * width], x, y});
+        }
+    }
+
+    // Sort corners by strongest response
+    std::sort(corners.begin(), corners.end(), std::greater<Corner>());
+
+    const float sqMinDist = minimumDistance * minimumDistance;
+    // Reject corners within minimum distance
+    for (int i = 0; i < corners.size(); i++) {
+        for (int j = i + 1; j < corners.size(); j++) {
+            const int xDist = corners[i].x - corners[j].x;
+            const int yDist = corners[i].y - corners[j].y;
+            const float sqDist = static_cast<float>(xDist * xDist + yDist * yDist);
+
+            if (sqDist < sqMinDist) {
+                corners.erase(corners.begin() + j);
+                j--;
+            }
+        }
+    }
+
+    return corners;
 }
 
 uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height) {
