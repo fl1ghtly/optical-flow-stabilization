@@ -204,22 +204,22 @@ uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int heig
         // Set default min/max to first value in each channel
         float maximum = image[channel];
         float minimum = image[channel];
-        for (int i = 0; i < width * height; i++) {
-            maximum = image[i * channels + channel] > maximum ? image[i * channels + channel] : maximum;
-            minimum = image[i * channels + channel] < minimum ? image[i * channels + channel] : minimum;
+        for (int i = 0; i < width * height * channels; i += 1 + channel) {
+            maximum = image[i] > maximum ? image[i] : maximum;
+            minimum = image[i] < minimum ? image[i] : minimum;
         }
     
         float range = maximum - minimum;
     
-        for (int i = 0; i < width * height; i++) {
+        for (int i = 0; i < width * height * channels; i += 1 + channel) {
             // Normalize to  a range of 0 - 1
-            float normalized = (image[i * channels + channel] - minimum) / range;
+            float normalized = (image[i] - minimum) / range;
             // Clamp to range of 0 - 1 incase of rounding error
             normalized = std::clamp(normalized, 0.0f, 1.0f);
             // Gamma correction
             normalized = std::pow(normalized, invGamma);
             // Convert to an 8-bit value
-            output[i * channels + channel] = static_cast<uint8_t>(normalized * 255.f);
+            output[i] = static_cast<uint8_t>(normalized * 255.f);
         }
     }
 
