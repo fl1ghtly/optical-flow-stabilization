@@ -197,30 +197,38 @@ std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int wid
 }
 
 uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma) {
-    uint8_t *output = new uint8_t[width * height * channels];
+    const int size = width * height * channels;
+    uint8_t *output = new uint8_t[size];
+    
+    // Build Gamma LUT if first time or gamma changes
+    static uint8_t gammaLUT[256];
+    static float lastGamma = -1.0f;
+    if (lastGamma != gamma) {
+        const float invGamma = 1.0f / gamma;
+        for (int i = 0; i < 256; i++) {
+        const float corrected = std::pow(i / 255.0f, invGamma);
+            // To round faster, add 0.5f as we know 'corrected' is >= 0
+            gammaLUT[i] = static_cast<uint8_t>(corrected * 255.0f + 0.5f);
+        }
+        lastGamma = gamma;
+    }
+    
 
-    const float invGamma = 1.0f / gamma;
-    for (int channel = 0; channel < channels; channel++) {
-        // Set default min/max to first value in each channel
-        float maximum = image[channel];
-        float minimum = image[channel];
-        for (int i = 0; i < width * height * channels; i += 1 + channel) {
-            maximum = image[i] > maximum ? image[i] : maximum;
-            minimum = image[i] < minimum ? image[i] : minimum;
-        }
+    // Find min/max pixel values
+    const auto [minIt, maxIt] = std::minmax_element(image.begin(), image.end());
+    const float minimum = *minIt;
+    const float maximum = *maxIt;
+    // TODO Handle case where image is a solid color (maximum == minimum)
+
+    const float invRange = 1.0f / (maximum - minimum);
     
-        float range = maximum - minimum;
-    
-        for (int i = 0; i < width * height * channels; i += 1 + channel) {
-            // Normalize to  a range of 0 - 1
-            float normalized = (image[i] - minimum) / range;
-            // Clamp to range of 0 - 1 incase of rounding error
-            normalized = std::clamp(normalized, 0.0f, 1.0f);
-            // Gamma correction
-            normalized = std::pow(normalized, invGamma);
-            // Convert to an 8-bit value
-            output[i] = static_cast<uint8_t>(normalized * 255.f);
-        }
+    for (int i = 0; i < size; i++) {
+        // Normalize to  a range of 0 - 1
+        float normalized = (image[i] - minimum) * invRange;
+        // Clamp to range of 0 - 1 incase of rounding error
+        normalized = std::clamp(normalized, 0.0f, 1.0f);
+        // Convert to an 8-bit value using gamma LUT
+        output[i] = gammaLUT[static_cast<int>(normalized * 255.0f + 0.5f)];
     }
 
     return output;
