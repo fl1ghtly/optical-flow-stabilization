@@ -196,25 +196,28 @@ std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int wid
     return corners;
 }
 
-uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height) {
-    uint8_t *output = new uint8_t[width * height];
+uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels) {
+    uint8_t *output = new uint8_t[width * height * channels];
 
-    float maximum = image[0];
-    float minimum = image[0];
-    for (int i = 0; i < width * height; i++) {
-        maximum = image[i] > maximum ? image[i] : maximum;
-        minimum = image[i] < minimum ? image[i] : minimum;
-    }
-
-    float range = maximum - minimum;
-
-    for (int i = 0; i < width * height; i++) {
-        // Normalize to  a range of 0 - 1
-        float normalized = (image[i] - minimum) / range;
-        // Clamp to range of 0 - 1 incase of rounding error
-        normalized = normalized < 0.f ? 0.f : (normalized > 1.f ? 1.f : normalized);
-        // Convert to an 8-bit value
-        output[i] = static_cast<uint8_t>(normalized * 255.f);
+    for (int channel = 0; channel < channels; channel++) {
+        // Set default min/max to first value in each channel
+        float maximum = image[channel];
+        float minimum = image[channel];
+        for (int i = 0; i < width * height; i++) {
+            maximum = image[i * channels + channel] > maximum ? image[i * channels + channel] : maximum;
+            minimum = image[i * channels + channel] < minimum ? image[i * channels + channel] : minimum;
+        }
+    
+        float range = maximum - minimum;
+    
+        for (int i = 0; i < width * height; i++) {
+            // Normalize to  a range of 0 - 1
+            float normalized = (image[i * channels + channel] - minimum) / range;
+            // Clamp to range of 0 - 1 incase of rounding error
+            normalized = normalized < 0.f ? 0.f : (normalized > 1.f ? 1.f : normalized);
+            // Convert to an 8-bit value
+            output[i * channels + channel] = static_cast<uint8_t>(normalized * 255.f);
+        }
     }
 
     return output;
