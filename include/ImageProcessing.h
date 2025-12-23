@@ -23,4 +23,4 @@ std::vector<float> shiTomasiCornerDetector(const std::vector<float> &image, int 
 std::vector<float> threshold(const std::vector<float> &image, int width, int height, float threshold);
 std::vector<float> nonMaximalSuppression(const std::vector<float> &image, int width, int height, int blockSize);
 std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int width, int height, float qualityLevel, float minimumDistance);
-uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma=2.2f);
+std::vector<uint8_t> convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma=2.2f);

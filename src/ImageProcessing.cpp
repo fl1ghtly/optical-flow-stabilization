@@ -196,9 +196,9 @@ std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int wid
     return corners;
 }
 
-uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma) {
+std::vector<uint8_t> convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma) {
     const int size = width * height * channels;
-    uint8_t *output = new uint8_t[size];
+    std::vector<uint8_t> output(size);
     
     // Build Gamma LUT if first time or gamma changes
     static uint8_t gammaLUT[256];
@@ -213,7 +213,6 @@ uint8_t* convertImageTo8bit(const std::vector<float> &image, int width, int heig
         lastGamma = gamma;
     }
     
-
     // Find min/max pixel values
     const auto [minIt, maxIt] = std::minmax_element(image.begin(), image.end());
     const float minimum = *minIt;
