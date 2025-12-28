@@ -241,7 +241,63 @@ std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int wi
     return output;
 }   
 
+std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features) {
+    static const std::vector<std::vector<double>> kernelX = {
+        {-1, 0, 1},
+        {-2, 0, 2},
+        {-1, 0, 1}
+    };
+    
+    static const std::vector<std::vector<double>> kernelY = {
+        {1, 2, 1},
+        {0, 0, 0},
+        {-1, -2, -1}
+    };
+    
+    const int windowSize = 3;
+    
+    std::vector<Point> output(features.size());
+    for (int i = 0; i < features.size(); i++) {
+        std::vector<double> gradientX(windowSize * windowSize);
+        std::vector<double> gradientY(windowSize * windowSize);
+        std::vector<double> gradientT(windowSize * windowSize);
+
+        const auto feature = features[i];
+        // Calculate gradients for each pixel inside a window
+        for (int p = 0; p < windowSize * windowSize; p++) {
+            const int pixelPIndex = (feature.x + (p % 3) - 1) + (feature.y + (p / 3) - 1) * width;
+            gradientT[p] = next[pixelPIndex] - prev[pixelPIndex];
+            for (int y = 0; y < windowSize; y++) {
+                const int dy = std::clamp(feature.y + (p / 3) - 1 + (y - windowSize / 2), 0, height - 1);
+                
+                for (int x = 0; x < windowSize; x++) {
+                    const int dx = std::clamp(feature.x + (p % 3) - 1 + (x - windowSize / 2), 0, width - 1);
+    
+                    gradientX[p] += prev[dx + dy * width] * kernelX[y][x];
+                    gradientY[p] += prev[dx + dy * width] * kernelY[y][x];
+                }
+            }
+        }
+        
+        // Least Squares approximation Ax = b -> AT * Ax = AT * b
+        // Calculate matrix AT * A and matrix AT * b
+        // [sum(IxIx) sum(IxIy)] * [u] = [sum(IxIt)]
+        // [sum(IyIx) sum(IyIy)]   [v]   [sum(IyIt)] for pixel p in a window
+        double Ix2, IxIy, Iy2, IxIt, IyIt;
+        for (int p = 0; p < windowSize * windowSize; p++) {
+            Ix2 += gradientX[p] * gradientX[p];
+            IxIy += gradientX[p] * gradientY[p];
+            Iy2 += gradientY[p] * gradientY[p];
+            IxIt += gradientX[p] * (-gradientT[p]);
+            IyIt += gradientY[p] * (-gradientT[p]);
+        }
+
+        // Solve
+        const double invDeterminant = 1.0 / (Ix2 * Iy2 - IxIy * IxIy);
+        const double u = invDeterminant * (Iy2 * IxIt - IxIy * IyIt);
+        const double v = invDeterminant * ((-IxIy * IxIt) + Ix2 * IyIt);
+        output[i] = {static_cast<int>(feature.x + u), static_cast<int>(feature.y + v)};
     }
 
     return output;
-}   
+}
