@@ -1,7 +1,7 @@
 #include "ImageProcessing.h"
 
-std::vector<float> convolveImageKernel(const std::vector<float> &image, int width, int height, std::vector<std::vector<float>> kernel) {
-    std::vector<float>output(width * height);
+std::vector<double> convolveImageKernel(const std::vector<double> &image, int width, int height, std::vector<std::vector<double>> kernel) {
+    std::vector<double>output(width * height);
     // Convolve the kernel at each pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -22,37 +22,37 @@ std::vector<float> convolveImageKernel(const std::vector<float> &image, int widt
     return output;
 }
 
-std::vector<float> boxFilter(const std::vector<float> &image, int width, int height, int boxSize, bool normalize) {
-    std::vector<float> output(width * height);
-    float weight = normalize ? 1.0f / (boxSize * boxSize) : 1.0f;
+std::vector<double> boxFilter(const std::vector<double> &image, int width, int height, int boxSize, bool normalize) {
+    std::vector<double> output(width * height);
+    double weight = normalize ? 1.0 / (boxSize * boxSize) : 1.0;
     
-    std::vector<std::vector<float>> hKernel(1, std::vector<float>(boxSize, 1.0f / weight));
+    std::vector<std::vector<double>> hKernel(1, std::vector<double>(boxSize, 1.0 / weight));
     output = convolveImageKernel(image, width, height, hKernel);
-    std::vector<std::vector<float>> vKernel(boxSize, std::vector<float>(1, 1.0f / weight));
+    std::vector<std::vector<double>> vKernel(boxSize, std::vector<double>(1, 1.0 / weight));
     return convolveImageKernel(output, width, height, vKernel);
 }
 
-std::vector<float> calculateCovarianceMatrix(const std::vector<float> &image, int width, int height, int blockSize) {
-    std::vector<std::vector<float>> kernelX = {
+std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, int width, int height, int blockSize) {
+    static const std::vector<std::vector<double>> kernelX = {
         {-1, 0, 1},
         {-2, 0, 2},
         {-1, 0, 1}
     };
     
-    std::vector<std::vector<float>> kernelY = {
+    static const std::vector<std::vector<double>> kernelY = {
         {1, 2, 1},
         {0, 0, 0},
         {-1, -2, -1}
     };
     
     // Calculate Image gradients in x and y direction
-    std::vector<float> gradientX = convolveImageKernel(image, width, height, kernelX);
-    std::vector<float> gradientY = convolveImageKernel(image, width, height, kernelY);
+    std::vector<double> gradientX = convolveImageKernel(image, width, height, kernelX);
+    std::vector<double> gradientY = convolveImageKernel(image, width, height, kernelY);
     
     // Compute Covariance matrix for each pixel
-    std::vector<float> Ix2(width * height);
-    std::vector<float> IxIy(width * height);
-    std::vector<float> Iy2(width * height);
+    std::vector<double> Ix2(width * height);
+    std::vector<double> IxIy(width * height);
+    std::vector<double> Iy2(width * height);
     
     for (int i = 0; i < width * height; i++) {
         Ix2[i] = gradientX[i] * gradientX[i];
@@ -65,7 +65,7 @@ std::vector<float> calculateCovarianceMatrix(const std::vector<float> &image, in
     IxIy = boxFilter(IxIy, width, height, blockSize);
     Iy2 = boxFilter(Iy2, width, height, blockSize);
     
-    std::vector<float> output(3 * width * height);
+    std::vector<double> output(3 * width * height);
     for (int i = 0; i < width * height; i++) {
         output[3 * i] = Ix2[i];
         output[3 * i + 1] = IxIy[i];
@@ -75,40 +75,40 @@ std::vector<float> calculateCovarianceMatrix(const std::vector<float> &image, in
     return output;
 }
 
-std::vector<float> harrisCornerDetector(const std::vector<float> &image, int width, int height, int blockSize, float sensitivity) {
-    std::vector<float> output(width * height);
-    std::vector<float> cov = calculateCovarianceMatrix(image, width, height, blockSize);
+std::vector<double> harrisCornerDetector(const std::vector<double> &image, int width, int height, int blockSize, double sensitivity) {
+    std::vector<double> output(width * height);
+    std::vector<double> cov = calculateCovarianceMatrix(image, width, height, blockSize);
 
     for (int i = 0; i < width * height; i++) {
-        const float Ix2 = cov[3 * i];
-        const float IxIy = cov[3 * i + 1];
-        const float Iy2 = cov[3 * i + 2];
+        const double Ix2 = cov[3 * i];
+        const double IxIy = cov[3 * i + 1];
+        const double Iy2 = cov[3 * i + 2];
 
         // Harris Criterion det(M) - k * trace^2(M)
-        const float determinant = Ix2 * Iy2 - IxIy * IxIy;
-        const float trace = Ix2 + Iy2;
+        const double determinant = Ix2 * Iy2 - IxIy * IxIy;
+        const double trace = Ix2 + Iy2;
         output[i] = determinant - sensitivity * trace * trace;
     }
 
     return output;
 }
 
-std::vector<float> shiTomasiCornerDetector(const std::vector<float> &image, int width, int height, int blockSize) {
-    std::vector<float> output(width * height);
-    std::vector<float> cov = calculateCovarianceMatrix(image, width, height, blockSize);
+std::vector<double> shiTomasiCornerDetector(const std::vector<double> &image, int width, int height, int blockSize) {
+    std::vector<double> output(width * height);
+    std::vector<double> cov = calculateCovarianceMatrix(image, width, height, blockSize);
 
     for (int i = 0; i < width * height; i++) {
-        const float Ix2 = cov[3 * i];
-        const float IxIy = cov[3 * i + 1];
-        const float Iy2 = cov[3 * i + 2];
+        const double Ix2 = cov[3 * i];
+        const double IxIy = cov[3 * i + 1];
+        const double Iy2 = cov[3 * i + 2];
         
-        const float determinant = Ix2 * Iy2 - IxIy * IxIy;
-        const float trace = Ix2 + Iy2;
+        const double determinant = Ix2 * Iy2 - IxIy * IxIy;
+        const double trace = Ix2 + Iy2;
 
         // Calculate Eigenvalues using algebraic formula
-        const float discriminant = std::sqrtf(trace * trace - (4.0f * determinant));
-        const float eigenV1 = trace / 2.0f + discriminant;
-        const float eigenV2 = trace / 2.0f - discriminant;
+        const double discriminant = std::sqrtf(trace * trace - (4.0 * determinant));
+        const double eigenV1 = trace / 2.0 + discriminant;
+        const double eigenV2 = trace / 2.0 - discriminant;
 
         output[i] = std::min(eigenV1, eigenV2);
     }
@@ -116,9 +116,9 @@ std::vector<float> shiTomasiCornerDetector(const std::vector<float> &image, int 
     return output;
 }
 
-std::vector<float> threshold(const std::vector<float> &image, int width, int height, float threshold) {
-    std::vector<float>output(width * height);
-    const float maxVal = *std::max_element(image.begin(), image.end());
+std::vector<double> threshold(const std::vector<double> &image, int width, int height, double threshold) {
+    std::vector<double>output(width * height);
+    const double maxVal = *std::max_element(image.begin(), image.end());
 
     for (int i = 0; i < width * height; i++) {
         if (image[i] >= threshold * maxVal) {
@@ -129,13 +129,13 @@ std::vector<float> threshold(const std::vector<float> &image, int width, int hei
     return output;
 }
 
-std::vector<float> nonMaximalSuppression(const std::vector<float> &image, int width, int height, int blockSize) {
-    std::vector<float>output(width * height);
+std::vector<double> nonMaximalSuppression(const std::vector<double> &image, int width, int height, int blockSize) {
+    std::vector<double>output(width * height);
 
     // Check for every pixel
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            float pixelValue = image[x + y * width];
+            double pixelValue = image[x + y * width];
             
             // Skip pixel if 0
             if (pixelValue == 0) continue;
@@ -162,72 +162,85 @@ std::vector<float> nonMaximalSuppression(const std::vector<float> &image, int wi
     return output;
 }
 
-std::vector<Corner> goodFeaturesToTrack(const std::vector<float> &image, int width, int height, float qualityLevel, float minimumDistance) {
-    std::vector<float> response = shiTomasiCornerDetector(image, width, height, 2);
-    std::vector<float> thresholded = threshold(response, width, height, qualityLevel);
-    std::vector<float> nms = nonMaximalSuppression(thresholded, width, height, 3);
+std::vector<Point> goodFeaturesToTrack(const std::vector<double> &image, int width, int height, double qualityLevel, double minimumDistance) {
+    std::vector<double> response = shiTomasiCornerDetector(image, width, height, 2);
+    std::vector<double> thresholded = threshold(response, width, height, qualityLevel);
+    std::vector<double> nms = nonMaximalSuppression(thresholded, width, height, 3);
 
-    std::vector<Corner> corners;
+    std::vector<std::pair<double, Point>> corners;
     // Get response and location of all corners
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            if (nms[x + y * width] > 0) corners.push_back({nms[x + y * width], x, y});
+            if (nms[x + y * width] > 0) corners.push_back({nms[x + y * width], {x, y}});
         }
     }
 
     // Sort corners by strongest response
-    std::sort(corners.begin(), corners.end(), std::greater<Corner>());
+    std::sort(corners.begin(), corners.end(), std::greater<std::pair<double, Point>>());
 
-    const float sqMinDist = minimumDistance * minimumDistance;
-    // Reject corners within minimum distance
-    for (int i = 0; i < corners.size(); i++) {
-        for (int j = i + 1; j < corners.size(); j++) {
-            const int xDist = corners[i].x - corners[j].x;
-            const int yDist = corners[i].y - corners[j].y;
-            const float sqDist = static_cast<float>(xDist * xDist + yDist * yDist);
+    // Remove response data from feature list
+    std::vector<Point> features;
+    features.reserve(corners.size());
+
+    for (auto& p : corners) {
+        features.push_back(p.second);
+    }
+
+    const double sqMinDist = minimumDistance * minimumDistance;
+    // Reject features within minimum distance
+    for (int i = 0; i < features.size(); i++) {
+        for (int j = i + 1; j < features.size(); j++) {
+            const int xDist = features[i].x - features[j].x;
+            const int yDist = features[i].y - features[j].y;
+            const double sqDist = static_cast<double>(xDist * xDist + yDist * yDist);
 
             if (sqDist < sqMinDist) {
-                corners.erase(corners.begin() + j);
+                features.erase(features.begin() + j);
                 j--;
             }
         }
     }
 
-    return corners;
+    return features;
 }
 
-std::vector<uint8_t> convertImageTo8bit(const std::vector<float> &image, int width, int height, int channels, float gamma) {
+std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int width, int height, int channels, double gamma) {
     const int size = width * height * channels;
     std::vector<uint8_t> output(size);
     
     // Build Gamma LUT if first time or gamma changes
     static uint8_t gammaLUT[256];
-    static float lastGamma = -1.0f;
+    static double lastGamma = -1.0;
     if (lastGamma != gamma) {
-        const float invGamma = 1.0f / gamma;
+        const double invGamma = 1.0 / gamma;
         for (int i = 0; i < 256; i++) {
-        const float corrected = std::pow(i / 255.0f, invGamma);
+        const double corrected = std::pow(i / 255.0, invGamma);
             // To round faster, add 0.5f as we know 'corrected' is >= 0
-            gammaLUT[i] = static_cast<uint8_t>(corrected * 255.0f + 0.5f);
+            gammaLUT[i] = static_cast<uint8_t>(corrected * 255.0 + 0.5);
         }
         lastGamma = gamma;
     }
     
     // Find min/max pixel values
     const auto [minIt, maxIt] = std::minmax_element(image.begin(), image.end());
-    const float minimum = *minIt;
-    const float maximum = *maxIt;
+    const double minimum = *minIt;
+    const double maximum = *maxIt;
     // TODO Handle case where image is a solid color (maximum == minimum)
 
-    const float invRange = 1.0f / (maximum - minimum);
+    const double invRange = 1.0 / (maximum - minimum);
     
     for (int i = 0; i < size; i++) {
         // Normalize to  a range of 0 - 1
-        float normalized = (image[i] - minimum) * invRange;
+        double normalized = (image[i] - minimum) * invRange;
         // Clamp to range of 0 - 1 incase of rounding error
-        normalized = std::clamp(normalized, 0.0f, 1.0f);
+        normalized = std::clamp(normalized, 0.0, 1.0);
         // Convert to an 8-bit value using gamma LUT
-        output[i] = gammaLUT[static_cast<int>(normalized * 255.0f + 0.5f)];
+        output[i] = gammaLUT[static_cast<int>(normalized * 255.0 + 0.5)];
+    }
+
+    return output;
+}   
+
     }
 
     return output;
