@@ -5,8 +5,8 @@
 #include <cmath>
 
 struct Point {
-	int x;
-	int y;
+	float x;
+	float y;
 
 	friend bool operator<(const Point& lhs, const Point& rhs) { return lhs.x < rhs.x ? true : lhs.y < rhs.y; }
 	friend bool operator>(const Point& lhs, const Point& rhs) { return rhs < lhs; };

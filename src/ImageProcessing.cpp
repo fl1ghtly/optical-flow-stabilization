@@ -171,7 +171,7 @@ std::vector<Point> goodFeaturesToTrack(const std::vector<double> &image, int wid
     // Get response and location of all corners
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            if (nms[x + y * width] > 0) corners.push_back({nms[x + y * width], {x, y}});
+            if (nms[x + y * width] > 0) corners.push_back({nms[x + y * width], {static_cast<float>(x), static_cast<float>(y)}});
         }
     }
 
@@ -262,16 +262,17 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         std::vector<double> gradientY(windowSize * windowSize);
         std::vector<double> gradientT(windowSize * windowSize);
 
-        const auto feature = features[i];
+        const int featureX = static_cast<int>(features[i].x + 0.5f);
+        const int featureY = static_cast<int>(features[i].y + 0.5f);
         // Calculate gradients for each pixel inside a window
         for (int p = 0; p < windowSize * windowSize; p++) {
-            const int pixelPIndex = (feature.x + (p % 3) - 1) + (feature.y + (p / 3) - 1) * width;
+            const int pixelPIndex = (featureX + (p % 3) - 1) + (featureY + (p / 3) - 1) * width;
             gradientT[p] = next[pixelPIndex] - prev[pixelPIndex];
             for (int y = 0; y < windowSize; y++) {
-                const int dy = std::clamp(feature.y + (p / 3) - 1 + (y - windowSize / 2), 0, height - 1);
+                const int dy = std::clamp(featureY + (p / 3) - 1 + (y - windowSize / 2), 0, height - 1);
                 
                 for (int x = 0; x < windowSize; x++) {
-                    const int dx = std::clamp(feature.x + (p % 3) - 1 + (x - windowSize / 2), 0, width - 1);
+                    const int dx = std::clamp(featureX + (p % 3) - 1 + (x - windowSize / 2), 0, width - 1);
     
                     gradientX[p] += prev[dx + dy * width] * kernelX[y][x];
                     gradientY[p] += prev[dx + dy * width] * kernelY[y][x];
@@ -296,7 +297,7 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         const double invDeterminant = 1.0 / (Ix2 * Iy2 - IxIy * IxIy);
         const double u = invDeterminant * (Iy2 * IxIt - IxIy * IyIt);
         const double v = invDeterminant * ((-IxIy * IxIt) + Ix2 * IyIt);
-        output[i] = {static_cast<int>(feature.x + u), static_cast<int>(feature.y + v)};
+        output[i] = {featureX + static_cast<float>(u), featureY + static_cast<float>(v)};
     }
 
     return output;
