@@ -1,20 +1,23 @@
 #include "ImageProcessing.h"
 
-std::vector<double> convolveImageKernel(const std::vector<double> &image, int width, int height, std::vector<std::vector<double>> kernel) {
-    std::vector<double>output(width * height);
+std::vector<double> convolveImageKernel(const std::vector<double> &image, int width, int height, int channels, std::vector<std::vector<double>> kernel) {
+    std::vector<double>output(width * height * channels);
     // Convolve the kernel at each pixel
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            for (int j = 0; j < kernel.size(); j++) {
-                int dy = y + (j - kernel.size() / 2);
-                // Pixels beyond image edges should replicate the nearest valid pixel
-                dy = std::clamp(dy, 0, height - 1);
-
-                for (int i = 0; i < kernel[0].size(); i++) {
-                    int dx = x + (i - kernel[0].size() / 2);
-                    dx = std::clamp(dx, 0, width - 1);
-
-                    output[x + y * width] += image[dx + dy * width] * kernel[j][i];
+    for (int c = 0; c < channels; c++) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Loop through each point in the kernel
+                for (int j = 0; j < kernel.size(); j++) {
+                    int dy = y + (j - kernel.size() / 2);
+                    // Pixels beyond image edges should replicate the nearest valid pixel
+                    dy = std::clamp(dy, 0, height - 1);
+    
+                    for (int i = 0; i < kernel[0].size(); i++) {
+                        int dx = x + (i - kernel[0].size() / 2);
+                        dx = std::clamp(dx, 0, width - 1);
+    
+                        output[(x + y * width) * channels + c] += image[(dx + dy * width) * channels + c] * kernel[j][i];
+                    }
                 }
             }
         }
@@ -22,42 +25,43 @@ std::vector<double> convolveImageKernel(const std::vector<double> &image, int wi
     return output;
 }
 
-std::vector<double> boxFilter(const std::vector<double> &image, int width, int height, int boxSize, bool normalize) {
+std::vector<double> boxFilter(const std::vector<double> &image, int width, int height, int channels, int boxSize, bool normalize) {
     std::vector<double> output(width * height);
     double weight = normalize ? 1.0 / (boxSize * boxSize) : 1.0;
     
     std::vector<std::vector<double>> hKernel(1, std::vector<double>(boxSize, 1.0 / weight));
-    output = convolveImageKernel(image, width, height, hKernel);
+    output = convolveImageKernel(image, width, height, channels, hKernel);
     std::vector<std::vector<double>> vKernel(boxSize, std::vector<double>(1, 1.0 / weight));
-    return convolveImageKernel(output, width, height, vKernel);
+    return convolveImageKernel(output, width, height, channels, vKernel);
 }
 
-std::vector<double> gaussianPyramid(const std::vector<double> &image, int width, int height) {
+std::vector<double> gaussianPyramid(const std::vector<double> &image, int width, int height, int channels) {
     static const std::vector<std::vector<double>> gaussianKernel = {
         {1.0 / 16.0, 1.0 / 8.0, 1.0 / 16.0},
         {1.0 / 8.0, 1.0 / 4.0, 1.0 / 8.0},
         {1.0 / 16.0, 1.0 / 8.0, 1.0 / 16.0}
     };
 
-    auto blurred = convolveImageKernel(image, width, height, gaussianKernel);
+    auto blurred = convolveImageKernel(image, width, height, channels, gaussianKernel);
 
     const int nextWidth = width / 2;
     const int nextHeight = height / 2;
 
-    std::vector<double> nextLevel(nextWidth * nextHeight);
+    std::vector<double> nextLevel(nextWidth * nextHeight * channels);
     
-    for (int y = 0; y < nextHeight; y++) {
-        for (int x = 0; x < nextWidth; x++) {
-            const int origX = x * 2;
-            const int origY = y * 2;
-
-            nextLevel[x + y * nextWidth] = blurred[origX + origY * width];
+    for (int c = 0; c < channels; c++) {
+        for (int y = 0; y < nextHeight; y++) {
+            for (int x = 0; x < nextWidth; x++) {
+                const int origX = x * 2;
+                const int origY = y * 2;
+    
+                nextLevel[(x + y * nextWidth) * channels + c] = blurred[(origX + origY * width) * channels + c];
+            }
         }
     }
 
     return nextLevel;
 }
-
 
 std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, int width, int height, int blockSize) {
     static const std::vector<std::vector<double>> kernelX = {
@@ -73,8 +77,8 @@ std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, 
     };
     
     // Calculate Image gradients in x and y direction
-    std::vector<double> gradientX = convolveImageKernel(image, width, height, kernelX);
-    std::vector<double> gradientY = convolveImageKernel(image, width, height, kernelY);
+    std::vector<double> gradientX = convolveImageKernel(image, width, height, 1, kernelX);
+    std::vector<double> gradientY = convolveImageKernel(image, width, height, 1, kernelY);
     
     // Compute Covariance matrix for each pixel
     std::vector<double> Ix2(width * height);
@@ -88,9 +92,9 @@ std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, 
     }
     
     // Multiply covariance matrix with window (box)
-    Ix2 = boxFilter(Ix2, width, height, blockSize);
-    IxIy = boxFilter(IxIy, width, height, blockSize);
-    Iy2 = boxFilter(Iy2, width, height, blockSize);
+    Ix2 = boxFilter(Ix2, width, height, 1, blockSize);
+    IxIy = boxFilter(IxIy, width, height, 1, blockSize);
+    Iy2 = boxFilter(Iy2, width, height, 1, blockSize);
     
     std::vector<double> output(3 * width * height);
     for (int i = 0; i < width * height; i++) {
