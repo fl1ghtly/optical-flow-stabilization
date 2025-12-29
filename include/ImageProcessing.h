@@ -17,6 +17,7 @@ struct Point {
 std::vector<double> convolveImageKernel(const std::vector<double> &image, int width, int height, std::vector<std::vector<double>> kernel);
 std::vector<double> sobel(const std::vector<double> &image, int width, int height);
 std::vector<double> boxFilter(const std::vector<double> &image, int width, int height, int boxSize, bool normalize=false);
+std::vector<double> gaussianPyramid(const std::vector<double> &image, int width, int height);
 std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, int width, int height, int blockSize);
 std::vector<double> harrisCornerDetector(const std::vector<double> &image, int width, int height, int blockSize, double sensitivity);
 std::vector<double> shiTomasiCornerDetector(const std::vector<double> &image, int width, int height, int blockSize);

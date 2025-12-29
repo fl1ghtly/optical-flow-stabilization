@@ -32,6 +32,33 @@ std::vector<double> boxFilter(const std::vector<double> &image, int width, int h
     return convolveImageKernel(output, width, height, vKernel);
 }
 
+std::vector<double> gaussianPyramid(const std::vector<double> &image, int width, int height) {
+    static const std::vector<std::vector<double>> gaussianKernel = {
+        {1.0 / 16.0, 1.0 / 8.0, 1.0 / 16.0},
+        {1.0 / 8.0, 1.0 / 4.0, 1.0 / 8.0},
+        {1.0 / 16.0, 1.0 / 8.0, 1.0 / 16.0}
+    };
+
+    auto blurred = convolveImageKernel(image, width, height, gaussianKernel);
+
+    const int nextWidth = width / 2;
+    const int nextHeight = height / 2;
+
+    std::vector<double> nextLevel(nextWidth * nextHeight);
+    
+    for (int y = 0; y < nextHeight; y++) {
+        for (int x = 0; x < nextWidth; x++) {
+            const int origX = x * 2;
+            const int origY = y * 2;
+
+            nextLevel[x + y * nextWidth] = blurred[origX + origY * width];
+        }
+    }
+
+    return nextLevel;
+}
+
+
 std::vector<double> calculateCovarianceMatrix(const std::vector<double> &image, int width, int height, int blockSize) {
     static const std::vector<std::vector<double>> kernelX = {
         {-1, 0, 1},
