@@ -333,3 +333,48 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
 
     return output;
 }
+
+std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Point> &features) {
+    std::vector<std::vector<double>> prevPyramid(levels);
+    std::vector<std::vector<double>> nextPyramid(levels);
+    std::vector<std::pair<int, int>> pyramidSizes(levels);
+    prevPyramid[0] = prev;
+    nextPyramid[0] = next;
+    pyramidSizes[0] = {width, height};
+
+    // Construct pyramid
+    for (int l = 1; l < levels; l++) {
+        const int prevLevelWidth = pyramidSizes[l - 1].first;
+        const int prevLevelHeight = pyramidSizes[l - 1].second;
+
+        prevPyramid[l] = gaussianPyramid(prevPyramid[l - 1], prevLevelWidth, prevLevelHeight, 1);
+        nextPyramid[l] = gaussianPyramid(nextPyramid[l - 1], prevLevelWidth, prevLevelHeight, 1);
+        pyramidSizes[l] = {prevLevelWidth / 2, prevLevelHeight / 2};
+    }
+
+    std::vector<Point> warpedFeatures(features.begin(), features.end());
+    for (int l = levels - 1; l >= 0; l--) {
+        const int levelWidth = pyramidSizes[l].first;
+        const int levelHeight = pyramidSizes[l].second;
+
+        std::vector<Point> scaledFeatures(warpedFeatures.begin(), warpedFeatures.end());
+
+        // Scale the feature's coordinates based on the level
+        if (l > 0) {
+            for (auto &feature : scaledFeatures) {
+                feature.x /= l * 2;
+                feature.y /= l * 2;
+            }
+        } 
+
+        warpedFeatures = lucasKanadeOpticalFlow(prevPyramid[l], nextPyramid[l], levelWidth, levelHeight, scaledFeatures);
+
+        // Rescale the new warped features for the next level
+        for (auto &feature : warpedFeatures) {
+            feature.x *= 2;
+            feature.y *= 2;
+        }
+    }
+
+    return warpedFeatures;
+}

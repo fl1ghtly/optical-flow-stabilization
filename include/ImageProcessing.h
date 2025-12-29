@@ -26,3 +26,4 @@ std::vector<double> nonMaximalSuppression(const std::vector<double> &image, int 
 std::vector<Point> goodFeaturesToTrack(const std::vector<double> &image, int width, int height, double qualityLevel, double minimumDistance);
 std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int width, int height, int channels, double gamma=2.2f);
 std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features);
+std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Point> &features);
