@@ -26,7 +26,7 @@ std::vector<double> convolveImageKernel(const std::vector<double> &image, int wi
 }
 
 std::vector<double> boxFilter(const std::vector<double> &image, int width, int height, int channels, int boxSize, bool normalize) {
-    std::vector<double> output(width * height);
+    std::vector<double> output(width * height * channels);
     double weight = normalize ? 1.0 / (boxSize * boxSize) : 1.0;
     
     std::vector<std::vector<double>> hKernel(1, std::vector<double>(boxSize, 1.0 / weight));
@@ -297,13 +297,13 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         const int featureY = static_cast<int>(features[i].y + 0.5f);
         // Calculate gradients for each pixel inside a window
         for (int p = 0; p < windowSize * windowSize; p++) {
-            const int pixelPIndex = (featureX + (p % 3) - 1) + (featureY + (p / 3) - 1) * width;
-            gradientT[p] = next[pixelPIndex] - prev[pixelPIndex];
+            const int pixelPIndex = (featureX + (p % windowSize) - 1) + (featureY + (p / windowSize) - 1) * width;
+            gradientT[p] += next[pixelPIndex] - prev[pixelPIndex];
             for (int y = 0; y < windowSize; y++) {
-                const int dy = std::clamp(featureY + (p / 3) - 1 + (y - windowSize / 2), 0, height - 1);
+                const int dy = std::clamp(featureY + (p / windowSize) - 1 + (y - windowSize / 2), 0, height - 1);
                 
                 for (int x = 0; x < windowSize; x++) {
-                    const int dx = std::clamp(featureX + (p % 3) - 1 + (x - windowSize / 2), 0, width - 1);
+                    const int dx = std::clamp(featureX + (p % windowSize) - 1 + (x - windowSize / 2), 0, width - 1);
     
                     gradientX[p] += prev[dx + dy * width] * kernelX[y][x];
                     gradientY[p] += prev[dx + dy * width] * kernelY[y][x];
@@ -315,7 +315,7 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         // Calculate matrix AT * A and matrix AT * b
         // [sum(IxIx) sum(IxIy)] * [u] = [sum(IxIt)]
         // [sum(IyIx) sum(IyIy)]   [v]   [sum(IyIt)] for pixel p in a window
-        double Ix2, IxIy, Iy2, IxIt, IyIt;
+        double Ix2 = 0, IxIy = 0, Iy2 = 0, IxIt = 0, IyIt = 0;
         for (int p = 0; p < windowSize * windowSize; p++) {
             Ix2 += gradientX[p] * gradientX[p];
             IxIy += gradientX[p] * gradientY[p];
@@ -353,26 +353,25 @@ std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev
     }
 
     std::vector<Point> warpedFeatures(features.begin(), features.end());
+    // Scale the feature's coordinates at the coarsest level
+    float coarsestScale = 1.0f / std::pow(2.0f, levels - 1);
+    for (auto &feature : warpedFeatures) {
+        feature.x *= coarsestScale;
+        feature.y *= coarsestScale;
+    }
+
     for (int l = levels - 1; l >= 0; l--) {
         const int levelWidth = pyramidSizes[l].first;
         const int levelHeight = pyramidSizes[l].second;
 
-        std::vector<Point> scaledFeatures(warpedFeatures.begin(), warpedFeatures.end());
+        warpedFeatures = lucasKanadeOpticalFlow(prevPyramid[l], nextPyramid[l], levelWidth, levelHeight, warpedFeatures);
 
-        // Scale the feature's coordinates based on the level
+        // Rescale the new warped features for the next level until original is reached
         if (l > 0) {
-            for (auto &feature : scaledFeatures) {
-                feature.x /= l * 2;
-                feature.y /= l * 2;
+            for (auto &feature : warpedFeatures) {
+                feature.x *= 2;
+                feature.y *= 2;
             }
-        } 
-
-        warpedFeatures = lucasKanadeOpticalFlow(prevPyramid[l], nextPyramid[l], levelWidth, levelHeight, scaledFeatures);
-
-        // Rescale the new warped features for the next level
-        for (auto &feature : warpedFeatures) {
-            feature.x *= 2;
-            feature.y *= 2;
         }
     }
 
