@@ -272,7 +272,7 @@ std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int wi
     return output;
 }   
 
-std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features) {
+std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features, int windowSize) {
     // Divide by 8 to reduce sobel gain in x and y gradients to align with gain of t gradient
     static const std::vector<std::vector<double>> sobelX = {
         {-1.0/8.0, 0, 1.0/8.0},
@@ -286,12 +286,11 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         {1.0/8.0, 2.0/8.0, 1.0/8.0}
     };
     
-    const int windowSize = 9;
     const int halfWindow = windowSize / 2;
 
     // Compute spatial gradients
-    auto gX = convolveImageKernel(prev, width, height, 1, sobelX);
-    auto gY = convolveImageKernel(prev, width, height, 1, sobelY);
+    const auto gX = convolveImageKernel(prev, width, height, 1, sobelX);
+    const auto gY = convolveImageKernel(prev, width, height, 1, sobelY);
 
     std::vector<Point> output(features.size());
     
@@ -347,7 +346,7 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
     return output;
 }
 
-std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Point> &features) {
+std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Point> &features, int windowSize) {
     std::vector<std::vector<double>> prevPyramid(levels);
     std::vector<std::vector<double>> nextPyramid(levels);
     std::vector<std::pair<int, int>> pyramidSizes(levels);
@@ -377,7 +376,7 @@ std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev
         const int levelWidth = pyramidSizes[l].first;
         const int levelHeight = pyramidSizes[l].second;
 
-        warpedFeatures = lucasKanadeOpticalFlow(prevPyramid[l], nextPyramid[l], levelWidth, levelHeight, warpedFeatures);
+        warpedFeatures = lucasKanadeOpticalFlow(prevPyramid[l], nextPyramid[l], levelWidth, levelHeight, warpedFeatures, windowSize);
 
         // Rescale the new warped features for the next level until original is reached
         if (l > 0) {
