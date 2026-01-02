@@ -273,7 +273,7 @@ std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int wi
 }   
 
 std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features, int windowSize) {
-    // Divide by 8 to reduce sobel gain in x and y gradients to align with gain of t gradient
+    // Divide by 8 to normalize the kernels and get u & v in terms of pixel per frame
     static const std::vector<std::vector<double>> sobelX = {
         {-1.0/8.0, 0, 1.0/8.0},
         {-2.0/8.0, 0, 2.0/8.0},
@@ -286,43 +286,51 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         {1.0/8.0, 2.0/8.0, 1.0/8.0}
     };
     
+    const int kernelSize = sobelX.size();
     const int halfWindow = windowSize / 2;
-
-    // Compute spatial gradients
-    const auto gX = convolveImageKernel(prev, width, height, 1, sobelX);
-    const auto gY = convolveImageKernel(prev, width, height, 1, sobelY);
-
+    
     std::vector<Point> output(features.size());
     
-    for (int i = 0; i < features.size(); i++) {
-        const int featureX = static_cast<int>(features[i].x + 0.5f);
-        const int featureY = static_cast<int>(features[i].y + 0.5f);
+    for (int f = 0; f < features.size(); f++) {
+        const int featureX = static_cast<int>(features[f].x + 0.5f);
+        const int featureY = static_cast<int>(features[f].y + 0.5f);
         
-        // Skip features too close to border
-        if (featureX < halfWindow || featureX >= width - halfWindow ||
-            featureY < halfWindow || featureY >= height - halfWindow) {
-            output[i] = features[i];
-            continue;
-        }
+        // Clamp window borders
+        const int windowLeft = std::max(0, featureX - halfWindow);
+        const int windowRight = std::min(featureX + halfWindow, width - 1);
+        const int windowTop = std::max(0, featureY - halfWindow);
+        const int windowBottom = std::min(featureY + halfWindow, height - 1);
 
         // Calculate gradients for each pixel inside the window
         double Ix2 = 0, IxIy = 0, Iy2 = 0, IxIt = 0, IyIt = 0;
         
-        for (int dy = -halfWindow; dy <= halfWindow; dy++) {
-            for (int dx = -halfWindow; dx <= halfWindow; dx++) {
-                const int pixelX = featureX + dx;
-                const int pixelY = featureY + dy;
-                const int pixelIndex = pixelX + pixelY * width;
-                
-                const double Ix = gX[pixelIndex];
-                const double Iy = gY[pixelIndex];
+        for (int y = windowTop; y <= windowBottom; y++) {
+            for (int x = windowLeft; x <= windowRight; x++) {
+                const int pixelIndex = x + y * width;
                 const double It = next[pixelIndex] - prev[pixelIndex];
                 
+                // Calculate spatial gradient at pixel
+                double Ix = 0;
+                double Iy = 0;
+                for (int j = 0; j < kernelSize; j++) {
+                    int spatialY = y + (j - kernelSize / 2);
+                    if (spatialY < 0) spatialY = -spatialY;
+                    else if (spatialY >= height) spatialY = 2 * height - 2 - spatialY;
+                    for (int i = 0; i < kernelSize; i++) {
+                        int spatialX = x + (i - kernelSize / 2);
+                        if (spatialX < 0) spatialX = -spatialX;
+                        else if (spatialX >= width) spatialX = 2 * width - 2 - spatialX;
+                        
+                        Ix += prev[spatialX + spatialY * width] * sobelX[j][i];
+                        Iy += prev[spatialX + spatialY * width] * sobelY[j][i];
+                    }
+                }
+
                 Ix2 += Ix * Ix;
                 IxIy += Ix * Iy;
                 Iy2 += Iy * Iy;
-                IxIt += Ix * It;
-                IyIt += Iy * It;
+                IxIt += Ix * (-It);
+                IyIt += Iy * (-It);
             }
         }
 
@@ -331,15 +339,15 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
         
         // Check if matrix is invertible
         if (std::abs(determinant) < 1e-7) {
-            output[i] = features[i];
+            output[f] = features[f];
             continue;
         }
         
         const double invDeterminant = 1.0 / determinant;
-        const double u = invDeterminant * (Iy2 * (-IxIt) - IxIy * (-IyIt));
-        const double v = invDeterminant * (-IxIy * (-IxIt) + Ix2 * (-IyIt));
+        const double u = invDeterminant * (Iy2 * IxIt - IxIy * IyIt);
+        const double v = invDeterminant * (-IxIy * IxIt + Ix2 * IyIt);
         
-        output[i] = {featureX + static_cast<float>(u), 
+        output[f] = {featureX + static_cast<float>(u), 
                      featureY + static_cast<float>(v)};
     }
 
