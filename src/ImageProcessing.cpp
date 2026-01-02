@@ -193,12 +193,12 @@ std::vector<double> nonMaximalSuppression(const std::vector<double> &image, int 
     return output;
 }
 
-std::vector<Point> goodFeaturesToTrack(const std::vector<double> &image, int width, int height, double qualityLevel, double minimumDistance) {
+std::vector<Vector2f> goodFeaturesToTrack(const std::vector<double> &image, int width, int height, double qualityLevel, double minimumDistance) {
     std::vector<double> response = shiTomasiCornerDetector(image, width, height, 2);
     std::vector<double> thresholded = threshold(response, width, height, qualityLevel);
     std::vector<double> nms = nonMaximalSuppression(thresholded, width, height, 3);
 
-    std::vector<std::pair<double, Point>> corners;
+    std::vector<std::pair<double, Vector2f>> corners;
     // Get response and location of all corners
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -207,10 +207,10 @@ std::vector<Point> goodFeaturesToTrack(const std::vector<double> &image, int wid
     }
 
     // Sort corners by strongest response
-    std::sort(corners.begin(), corners.end(), std::greater<std::pair<double, Point>>());
+    std::sort(corners.begin(), corners.end(), std::greater<std::pair<double, Vector2f>>());
 
     // Remove response data from feature list
-    std::vector<Point> features;
+    std::vector<Vector2f> features;
     features.reserve(corners.size());
 
     for (auto& p : corners) {
@@ -272,7 +272,7 @@ std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int wi
     return output;
 }   
 
-std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Point> &features, int windowSize) {
+std::vector<Vector2f> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Vector2f> &features, int windowSize) {
     // Divide by 8 to normalize the kernels and get u & v in terms of pixel per frame
     static const std::vector<std::vector<double>> sobelX = {
         {-1.0/8.0, 0, 1.0/8.0},
@@ -289,7 +289,7 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
     const int kernelSize = sobelX.size();
     const int halfWindow = windowSize / 2;
     
-    std::vector<Point> output(features.size());
+    std::vector<Vector2f> output(features.size());
     
     for (int f = 0; f < features.size(); f++) {
         const int featureX = static_cast<int>(features[f].x + 0.5f);
@@ -354,7 +354,7 @@ std::vector<Point> lucasKanadeOpticalFlow(const std::vector<double> &prev, const
     return output;
 }
 
-std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Point> &features, int windowSize) {
+std::vector<Vector2f> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Vector2f> &features, int windowSize) {
     std::vector<std::vector<double>> prevPyramid(levels);
     std::vector<std::vector<double>> nextPyramid(levels);
     std::vector<std::pair<int, int>> pyramidSizes(levels);
@@ -372,7 +372,7 @@ std::vector<Point> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev
         pyramidSizes[l] = {prevLevelWidth / 2, prevLevelHeight / 2};
     }
 
-    std::vector<Point> warpedFeatures(features.begin(), features.end());
+    std::vector<Vector2f> warpedFeatures(features.begin(), features.end());
     // Scale the feature's coordinates at the coarsest level
     float coarsestScale = 1.0f / std::pow(2.0f, levels - 1);
     for (auto &feature : warpedFeatures) {
