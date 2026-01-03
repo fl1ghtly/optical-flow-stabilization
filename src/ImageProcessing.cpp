@@ -397,3 +397,79 @@ std::vector<Vector2f> lucasKanadeOpticalFlowPyramid(const std::vector<double> &p
 
     return warpedFeatures;
 }
+
+Eigen::Matrix<double, 2, 3> estimateAffineTransform(const std::vector<Vector2f> &prevPts, const std::vector<Vector2f> &nextPts, float reprojectionThreshold) {
+    // RANSAC algorithm
+    // Returns a 2x3 matrix [A|B]
+    // [a00 a01 b0]
+    // [a10 a11 b1]
+
+    std::vector<std::pair<Vector2f, Vector2f>> zipped(prevPts.size());
+    for (int i = 0; i < prevPts.size(); i++) {
+        zipped[i] = {prevPts[i], nextPts[i]};
+    }
+    
+    // RANSAC Iteration count
+    const int N = 35;
+    
+    int maxInliers = 0;
+    Eigen::Matrix<float, 3, 3> bestTransform;
+    for (int i = 0; i < N; i++) {
+        // Pick 3 random sample points and calculate the hypothesis affine transformation matrix
+        std::vector<std::pair<Vector2f, Vector2f>> sampled;
+        std::sample(zipped.begin(), zipped.end(), std::back_inserter(sampled), 3, std::mt19937{std::random_device{}()});
+
+        Eigen::Matrix<float, 6, 6> M {
+            {sampled[0].first.x, sampled[0].first.y, 1, 0, 0, 0},
+            {0, 0, 0, sampled[0].first.x, sampled[0].first.y, 1},
+            {sampled[1].first.x, sampled[1].first.y, 1, 0, 0, 0},
+            {0, 0, 0, sampled[1].first.x, sampled[1].first.y, 1},
+            {sampled[2].first.x, sampled[2].first.y, 1, 0, 0, 0},
+            {0, 0, 0, sampled[2].first.x, sampled[2].first.y, 1},
+        };
+
+        Eigen::Vector<float, 6> b {
+            sampled[0].second.x,
+            sampled[0].second.y,
+            sampled[1].second.x,
+            sampled[1].second.y,
+            sampled[2].second.x,
+            sampled[2].second.y,
+        };
+
+        // Solve Mp = b for vector p.
+        Eigen::Vector<float, 6> parameters = M.colPivHouseholderQr().solve(b);
+
+        Eigen::Matrix<float, 3, 3> transformation {
+            {parameters(0), parameters(1), parameters(2)},
+            {parameters(3), parameters(4), parameters(5)},
+            {0, 0, 1},
+        };
+
+        float test = parameters(0);
+
+        int inliers = 0;
+        // Score the hypothesis based on predicted location and actual location
+        for (int i = 0; i < prevPts.size(); i++) {
+            Eigen::Matrix<float, 3, 1> pt = {prevPts[i].x, prevPts[i].y, 1};
+            Eigen::Vector<float, 3> predicted = transformation * pt;
+
+            const float xDist = predicted(0) - nextPts[i].x;
+            const float yDist = predicted(1) - nextPts[i].y;
+            const float sqDist = xDist * xDist + yDist * yDist;
+
+            if (sqDist < reprojectionThreshold * reprojectionThreshold) inliers++;
+        }
+
+        if (inliers > maxInliers) {
+            maxInliers = inliers;
+            bestTransform = transformation;
+        }
+    }
+
+    // TODO use least squares to improve transform
+    return Eigen::Matrix<double, 2, 3> {
+        {bestTransform(0, 0), bestTransform(0, 1), bestTransform(0, 2)},
+        {bestTransform(1, 0), bestTransform(1, 1), bestTransform(1, 2)},
+    };
+}

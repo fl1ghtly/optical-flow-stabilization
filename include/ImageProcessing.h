@@ -3,6 +3,8 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <random>
+#include <Eigen/Dense>
 
 struct Vector2f {
 	float x;
@@ -27,3 +29,4 @@ std::vector<Vector2f> goodFeaturesToTrack(const std::vector<double> &image, int 
 std::vector<uint8_t> convertImageTo8bit(const std::vector<double> &image, int width, int height, int channels, double gamma=2.2f);
 std::vector<Vector2f> lucasKanadeOpticalFlow(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, const std::vector<Vector2f> &features, int windowSize);
 std::vector<Vector2f> lucasKanadeOpticalFlowPyramid(const std::vector<double> &prev, const std::vector<double> &next, int width, int height, int levels, const std::vector<Vector2f> &features, int windowSize);
+Eigen::Matrix<double, 2, 3> estimateAffineTransform(const std::vector<Vector2f> &prevPts, const std::vector<Vector2f> &nextPts, float reprojectionThreshold);
