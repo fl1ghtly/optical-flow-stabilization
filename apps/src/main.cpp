@@ -7,32 +7,30 @@
 int main() {
     int width, height, nChannels;
     // Load image in grayscale
-    float *data = stbi_loadf("checkerboard.png", &width, &height, &nChannels, STBI_grey);
+    float *data = stbi_loadf("data.png", &width, &height, &nChannels, STBI_grey);
+    float *dataNext = stbi_loadf("data_next.png", &width, &height, &nChannels, STBI_grey);
     // nChannels is set to the amount of channels in the original image, need to set to 1 for grayscale
     nChannels = 1;
     
-    if (!data) {
+    if (!data || !dataNext) {
         std::cerr << "Failed to load image" << std::endl;
         return 1;
     }
 
-    std::vector<float> vec(data, data + width * height * nChannels);
+    std::vector<double> prev(data, data + width * height * nChannels);
+    std::vector<double> next(dataNext, dataNext + width * height * nChannels);
     stbi_image_free(data);
+    stbi_image_free(dataNext);
 
-    std::vector<float> response = harrisCornerDetector(vec, width, height, 2, 0.04);
-    std::vector<float> thresholded = threshold(response, width, height, 0.01);
-    std::vector<float> nms = nonMaximalSuppression(thresholded, width, height, 5);
-    uint8_t *output = convertImageTo8bit(nms, width, height);
+    auto prevPts = goodFeaturesToTrack(prev, width, height, 0.01, 10.0);
+    auto nextPts = lucasKanadeOpticalFlow(prev, next, width, height, prevPts, 25);
     
-    int success = stbi_write_png("output.png", width, height, nChannels, output, width * nChannels);
-    // TODO NMS
-    if (success) {
-        std::cout << "Image saved" << std::endl;
-    } else {
-        std::cerr << "Failed to save image" << std::endl;
-    }
+    auto transformation = estimateAffineTransform(prevPts, nextPts, 5.0f);
+    // auto nextPts = lucasKanadeOpticalFlowPyramid(prev, next, width, height, 3, prevPts, 25);
 
-    delete[] output;
+    for (int i = 0; i < nextPts.size(); i++) {
+        std::cout << nextPts[i].x - prevPts[i].x << ", " << nextPts[i].y - prevPts[i].y << std::endl;
+    }
 
     return 0;
 }
